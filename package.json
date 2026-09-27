@@ -1,20 +1,39 @@
 {
   "name": "@drxiaozhi/jspulse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Bun/JavaScript implementation of PulseAudio’s native protocol for Linux and Android, with ALSA audio, native OpenSL ES, and direct ioctl mixer control",
   "license": "LGPL-2.1-or-later",
   "author": "Dr. John (醫者小智)",
   "type": "module",
-  "bin": { "jspulse": "./jspulse.js" },
-  "os": ["linux", "android"],
+  "bin": {
+    "jspulse": "./jspulse.js"
+  },
+  "os": [
+    "linux",
+    "android"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jjtseng93/jspulse.git"
   },
   "homepage": "https://github.com/jjtseng93/jspulse#readme",
-  "bugs": { "url": "https://github.com/jjtseng93/jspulse/issues" },
-  "keywords": ["pulseaudio", "alsa", "opensl-es", "android", "termux", "bun", "audio", "ffi", "buninu"],
-  "publishConfig": { "access": "public" },
+  "bugs": {
+    "url": "https://github.com/jjtseng93/jspulse/issues"
+  },
+  "keywords": [
+    "pulseaudio",
+    "alsa",
+    "opensl-es",
+    "android",
+    "termux",
+    "bun",
+    "audio",
+    "ffi",
+    "buninu"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "alsa": "bun ./jspulse.js --alsa",
     "sles": "bun ./jspulse.js --sles",
