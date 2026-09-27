@@ -35,14 +35,26 @@ contributors identified below and in the source-file notices.
 ## ALSA
 
 - Upstream: https://github.com/alsa-project/alsa-lib
-- Referenced file: `src/pcm/pcm_params.c`
+- Referenced files: `src/pcm/pcm_params.c` and `src/pcm/interval.c`
 - Referenced kernel UAPI: `include/uapi/sound/asound.h`
 - License for the userspace parameter-selection design: LGPL-2.1-or-later
 - Full text: `LICENSES/LGPL-2.1.txt`
 - The JavaScript PCM backend follows the `HW_REFINE`/`HW_PARAMS` selection
-  order designed by Abramo Bagnara and other ALSA contributors. Kernel UAPI
+  order designed by Abramo Bagnara and other ALSA contributors, and chooses
+  interval values with the `snd_interval_refine_first`/`last` semantics of
+  `interval.c` so open (non-integer) intervals stay valid. Kernel UAPI
   constants and layouts are used only as the public Linux userspace ABI; no
   ALSA kernel implementation code is redistributed.
+
+## Sun Microsystems G.711 codec
+
+- Referenced file: `g711.c` (Sun Microsystems, Inc.), the widely
+  redistributed reference A-law/μ-law implementation
+- Used by: `lib/pcm-convert.js` (A-law/μ-law encode and decode)
+- License: the original notice states that the code "is provided for
+  unrestricted use. Users may copy or modify this source code without
+  charge." It is provided as is, with no warranties, and Sun Microsystems
+  shall have no liability arising from its use.
 
 Android and OpenSL ES are trademarks of their respective owners. Android
 system libraries are loaded from the device and are not distributed here.
