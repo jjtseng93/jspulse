@@ -34,6 +34,10 @@ jspulse --audio-info                # English card/control information
 jspulse --audio-info-zh             # Traditional Chinese information
 ```
 
+Volume output includes `(muted)` or `(unmuted)` whenever the selected control
+has a corresponding playback/capture switch, so a nonzero percentage cannot
+hide the hardware mute state.
+
 Mixer options may be combined with `--alsa`; controls are applied before the
 server starts. A short control name such as `Master`, `PCM`, `Mic`, or
 `Capture` is expanded to the corresponding playback/capture volume. Full
