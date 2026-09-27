@@ -19,15 +19,19 @@ jspulse runs on Bun (`bun:ffi`), so Bun must be on `PATH`; `npx` then starts
 it through the package's `#!/usr/bin/env bun` entry point:
 
 ```sh
+npx @drxiaozhi/jspulse --volume 50   # set a known volume (also unmutes) first
 npx @drxiaozhi/jspulse --alsa    # direct ALSA kernel PCM backend
 bunx @drxiaozhi/jspulse --sles   # Android native OpenSL ES backend
 export PULSE_SERVER=127.0.0.1
 paplay sound.wav
 ```
 
-Play a 432 Hz sine tone for three seconds, or choose a frequency and duration:
+Play a 432 Hz sine tone for three seconds, or choose a frequency and duration.
+Set the volume first; setting it also unmutes the output, so the tone is
+audible:
 
 ```sh
+jspulse --volume 50                 # set a known volume and unmute first
 jspulse --play
 jspulse --play 442                   # 442 Hz for the default 3 seconds
 jspulse --play 442x0.5              # 442 Hz for half a second
