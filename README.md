@@ -19,7 +19,8 @@ jspulse runs on Bun (`bun:ffi`), so Bun must be on `PATH`; `npx` then starts
 it through the package's `#!/usr/bin/env bun` entry point:
 
 ```sh
-npx @drxiaozhi/jspulse --volume 50   # set a known volume (also unmutes) first
+# Set a known volume first (also unmutes); ALSA only, not Android
+npx @drxiaozhi/jspulse --volume 50
 npx @drxiaozhi/jspulse --alsa    # direct ALSA kernel PCM backend
 bunx @drxiaozhi/jspulse --sles   # Android native OpenSL ES backend
 export PULSE_SERVER=127.0.0.1
@@ -28,10 +29,12 @@ paplay sound.wav
 
 Play a 432 Hz sine tone for three seconds, or choose a frequency and duration.
 Set the volume first; setting it also unmutes the output, so the tone is
-audible:
+audible. `--volume` controls the ALSA hardware mixer and does not apply to
+Android; there, use the system volume instead:
 
 ```sh
-jspulse --volume 50                 # set a known volume and unmute first
+# Set a known volume and unmute first; ALSA only, not Android
+jspulse --volume 50
 jspulse --play
 jspulse --play 442                   # 442 Hz for the default 3 seconds
 jspulse --play 442x0.5              # 442 Hz for half a second
@@ -49,7 +52,9 @@ Run `jspulse --help` for concise CLI usage or `jspulse --readme` to render
 this complete README in the terminal with `Bun.markdown.ansi`.
 
 ALSA hardware mixer control is implemented directly with kernel ioctls; it
-does not use `amixer` or `libasound`:
+does not use `amixer` or `libasound`. The volume, mute, and `--audio-info`
+options below do not apply to Android: its audio goes through OpenSL ES
+(`--sles`) and the system mixer, so use Android's own volume controls there.
 
 ```sh
 jspulse --volume 80                 # set playback hardware volume and exit

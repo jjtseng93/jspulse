@@ -39,7 +39,9 @@ Information:
   --readme                     Render README.md in the terminal and exit
 
 Set PULSE_SERVER=127.0.0.1 for PulseAudio clients. Numeric volumes are
-percentages; setting one automatically unmutes the corresponding switch.`;
+percentages; setting one automatically unmutes the corresponding switch.
+Volume and mute options control the ALSA hardware mixer and do not apply to
+Android; use the Android system volume there.`;
 
 const argv=process.argv.slice(2),options={card:null};
 for(let i=0;i<argv.length;i++){
