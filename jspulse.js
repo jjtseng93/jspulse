@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// SPDX-License-Identifier: LGPL-2.1-or-later
 import { PulseServer } from "./lib/server.js";
 import { createBackend } from "./lib/audio.js";
 

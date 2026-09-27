@@ -1,6 +1,7 @@
 {
   "name": "jspulse",
   "version": "0.1.0",
+  "license": "LGPL-2.1-or-later",
   "type": "module",
   "bin": { "jspulse": "./jspulse.js" },
   "scripts": { 

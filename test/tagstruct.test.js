@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 import { describe, expect, test } from "bun:test";
-import { Reader, Writer, command } from "./tagstruct.js";
+import { Reader, Writer, command } from "../lib/tagstruct.js";
 
 describe("Pulse tagstruct codec", () => {
   test("round trips v8 primitives", () => {
