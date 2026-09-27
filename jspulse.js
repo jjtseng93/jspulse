@@ -3,16 +3,22 @@
 import { PulseServer } from "./lib/server.js";
 import { createBackend } from "./lib/audio.js";
 import {AlsaControl,availableCards,formatAudioInfo} from "./lib/alsa-control.js";
+import {existsSync} from "node:fs";
+import {parseTone,playTone} from "./lib/tone.js";
+import {availablePcmDevices} from "./lib/alsa-pcm.js";
 
 const help=`Usage:
   jspulse --alsa
   jspulse --sles
+  jspulse --play [FREQUENCY[xSECONDS]]
   jspulse [--card N] --volume [CONTROL] [0-100]
   jspulse [--card N] --mic-volume [CONTROL] [0-100]
 
 Audio server:
-  --alsa                       Use the aplay/arecord ALSA backend
+  --alsa                       Use the direct ALSA kernel PCM backend
   --sles                       Use the native Android OpenSL ES backend
+  --play [FREQUENCY[xSECONDS]] Play a sine tone (default: 432 Hz for 3 seconds;
+                               x-1 plays until Ctrl-C)
 
 ALSA mixer:
   --volume [CONTROL] [0-100]   Read or set playback volume
@@ -41,6 +47,7 @@ for(let i=0;i<argv.length;i++){
   if(a==="-h"||a==="--help")options.help=true;
   else if(a==="--readme")options.readme=true;
   else if(a==="--alsa"||a==="--sles")options.mode=a.slice(2);
+  else if(a==="--play"){options.play=next!=null&&!next.startsWith("--")?argv[++i]:"";}
   else if(a==="--card")options.card=Number(argv[++i]);
   else if(a==="--playback-control")options.playbackControl=argv[++i];
   else if(a==="--capture-control")options.captureControl=argv[++i];
@@ -58,6 +65,7 @@ for(let i=0;i<argv.length;i++){
 
 if(options.help){console.log(help);process.exit(0);}
 if(options.readme){process.stdout.write(Bun.markdown.ansi(await Bun.file(new URL("./README.md",import.meta.url)).text(),{hyperlinks:true}));process.exit(0);}
+if("play" in options)try{options.tone=parseTone(options.play);}catch(error){console.error(error.message);process.exit(2);}
 
 const mixerRequested=options.info||"volume" in options||"micVolume" in options||"mute" in options||"micMute" in options;
 if(options.mode==="sles"&&mixerRequested){console.error("ALSA mixer options cannot be used with --sles");process.exit(2);}
@@ -65,7 +73,8 @@ if(mixerRequested){const infoOnly=options.info&&!("volume" in options)&&!("micVo
 }
 
 const mode=options.mode;
-if(!mode){if(mixerRequested)process.exit(0);console.error("Usage: jspulse --alsa | --sles | --audio-info[-zh] | --volume [CONTROL] [0-100]\nRun 'jspulse --help' or 'jspulse -h' for complete usage.");process.exit(2);}
+if(options.tone){const androidAudio=(existsSync("/system/lib64/libOpenSLES.so")||existsSync("/system/lib/libOpenSLES.so"))&&(existsSync("/system/bin/linker64")||existsSync("/system/bin/linker")),toneMode=mode||(androidAudio?"sles":availablePcmDevices("playback").length?"alsa":null);if(!toneMode){console.error("--play requires an Android OpenSL ES or ALSA PCM device");process.exit(1);}console.log(`jspulse: playing ${options.tone.frequency} Hz${options.tone.duration===-1?" until Ctrl-C":` for ${options.tone.duration} seconds`} via ${toneMode}`);await playTone(await createBackend(toneMode),options.tone);process.exit(0);}
+if(!mode){if(mixerRequested)process.exit(0);console.error("Usage: jspulse --alsa | --sles | --play [FREQUENCY[xSECONDS]] | --audio-info[-zh]\nRun 'jspulse --help' or 'jspulse -h' for complete usage.");process.exit(2);}
 
 const backend = await createBackend(mode);
 const server = new PulseServer({ backend, host: "127.0.0.1", port: 4713 });
