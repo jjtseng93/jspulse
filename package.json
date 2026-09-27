@@ -1,0 +1,7 @@
+{
+  "name": "jspulse",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "jspulse": "./jspulse.js" },
+  "scripts": { "test": "bun test" }
+}
