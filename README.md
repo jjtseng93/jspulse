@@ -15,9 +15,12 @@ It listens only
 on `127.0.0.1:4713`, always accepts anonymous clients, and creates one default
 source and sink automatically. It does not read or create a Pulse cookie.
 
+jspulse runs on Bun (`bun:ffi`), so Bun must be on `PATH`; `npx` then starts
+it through the package's `#!/usr/bin/env bun` entry point:
+
 ```sh
-bunx jspulse --alsa       # direct ALSA kernel PCM backend
-bunx jspulse --sles       # Android native OpenSL ES backend
+npx @drxiaozhi/jspulse --alsa    # direct ALSA kernel PCM backend
+bunx @drxiaozhi/jspulse --sles   # Android native OpenSL ES backend
 export PULSE_SERVER=127.0.0.1
 paplay sound.wav
 ```
