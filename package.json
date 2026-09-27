@@ -1,6 +1,6 @@
 {
   "name": "@drxiaozhi/jspulse",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A Bun/JavaScript implementation of PulseAudio’s native protocol for Linux and Android, with ALSA audio, native OpenSL ES, and direct ioctl mixer control",
   "license": "LGPL-2.1-or-later",
   "author": "Dr. John (醫者小智)",
