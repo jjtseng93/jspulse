@@ -3,5 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "bin": { "jspulse": "./jspulse.js" },
-  "scripts": { "test": "bun test" }
+  "scripts": { 
+    "alsa": "bun ./jspulse.js --alsa",
+    "sles": "bun ./jspulse.js --sles",
+    "test": "bun test" 
+  }
 }
