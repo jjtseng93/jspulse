@@ -21,4 +21,8 @@ describe("Pulse server",()=>{
     c.socket.write(packet(command(14,2).u32(id).timeval({sec:1,usec:2})));const latency=await c.next();expect([latency.u32(),latency.u32()]).toEqual([2,2]);expect(latency.data[latency.i]).toBe(85);latency.i+=1;expect(new DataView(latency.data.buffer,latency.data.byteOffset+latency.i,8).getBigUint64(0)).toBe(123456n);
     await Promise.race([server.close(),Bun.sleep(1000).then(()=>{throw new Error("server.close() hung with a client attached");})]);
   });
+  test("reports a busy device as a stream error and keeps the connection",async()=>{
+    const backend={openPlayback(){throw Object.assign(new Error("cannot open ALSA PCM (EBUSY)"),{errno:16});},close(){},async shutdown(){}},server=new PulseServer({backend,port:0});await server.listen();const c=await connect(server.server.address().port),error=console.error;console.error=()=>{};
+    try{c.socket.write(packet(command(3,7).string("x").sample({format:3,channels:2,rate:48000}).map(2).u32(0xffffffff).string(null).u32(0xffffffff).bool(false).u32(0xffffffff).u32(0xffffffff).u32(0xffffffff).u32(0xffffffff).cvolume(2)));const reply=await c.next();expect([reply.u32(),reply.u32(),reply.u32()]).toEqual([0,7,26]);expect(c.socket.destroyed).toBeFalse();}finally{console.error=error;await server.close();}
+  });
 });

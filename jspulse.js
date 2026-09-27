@@ -5,7 +5,7 @@ import { createBackend } from "./lib/audio.js";
 import {AlsaControl,availableCards,formatAudioInfo} from "./lib/alsa-control.js";
 import {existsSync} from "node:fs";
 import {parseTone,playTone} from "./lib/tone.js";
-import {availablePcmDevices} from "./lib/alsa-pcm.js";
+import {availablePcmDevices,describePcmDevice} from "./lib/alsa-pcm.js";
 
 const help=`Usage:
   jspulse --alsa
@@ -79,6 +79,7 @@ if(!mode){if(mixerRequested)process.exit(0);console.error("Usage: jspulse --alsa
 const backend = await createBackend(mode);
 const server = new PulseServer({ backend, host: "127.0.0.1", port: 4713 });
 await server.listen();
+if(mode==="alsa")for(const direction of ["playback","capture"]){const devices=availablePcmDevices(direction);if(!devices.length)console.log(`jspulse: no ALSA ${direction} PCM device found`);for(const path of devices)console.log(`jspulse: ${direction} ${path}: ${describePcmDevice(path)}`);}
 console.log(`jspulse: ${mode} source/sink ready on 127.0.0.1:4713 (anonymous)`);
 
 const stop = async () => {

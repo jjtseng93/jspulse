@@ -77,7 +77,10 @@ It follows Termux's `module-sles-sink` engine/output-mix/buffer-queue design
 and includes its own Android platform-linker namespace loader. It does not
 require Termux, `libandroid-stub`, PulseAudio, tinyplay, or aplay at runtime.
 `--alsa` implements the ALSA kernel PCM UAPI directly and does not require
-`alsa-utils` or `libasound`.
+`alsa-utils` or `libasound`. Playback streams are mixed in software into one
+shared 48 kHz s16le stereo device, so several clients (for example multiple
+Chromium tabs) can play at once; the device is released when the last stream
+closes. Recording opens the capture device for one stream at a time.
 
 Recording requires the Android host application that launches Bun to declare
 and receive the `android.permission.RECORD_AUDIO` runtime permission. Playback
