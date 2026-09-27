@@ -37,6 +37,10 @@ server starts. A short control name such as `Master`, `PCM`, `Mic`, or
 names may be quoted. Setting any numeric volume, including zero, automatically
 enables the corresponding switch when one exists. The compatibility options
 `--playback-control NAME` and `--capture-control NAME` are also available.
+The ioctl binding checks the filesystem for an actual libc file. It prefers
+Buninu's independent `/lib/libc.musl-<arch>.so.1`, then checks standard glibc
+and Android bionic paths; it never guesses from an environment variable or
+opens the active musl loader inode.
 
 `--sles` drives Android's native `libOpenSLES.so` directly through Bun FFI.
 It follows Termux's `module-sles-sink` engine/output-mix/buffer-queue design
