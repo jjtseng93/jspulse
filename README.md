@@ -15,6 +15,9 @@ export PULSE_SERVER=127.0.0.1
 paplay sound.wav
 ```
 
+Run `jspulse --help` for concise CLI usage or `jspulse --readme` to render
+this complete README in the terminal with `Bun.markdown.ansi`.
+
 ALSA hardware mixer control is implemented directly with kernel ioctls; it
 does not use `amixer` or `libasound`:
 
