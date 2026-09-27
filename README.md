@@ -15,6 +15,29 @@ export PULSE_SERVER=127.0.0.1
 paplay sound.wav
 ```
 
+ALSA hardware mixer control is implemented directly with kernel ioctls; it
+does not use `amixer` or `libasound`:
+
+```sh
+jspulse --volume 80                 # set playback hardware volume and exit
+jspulse --mic-volume 70             # set capture hardware volume and exit
+jspulse --volume                    # show current playback volume
+jspulse --volume Master 60          # select Master and automatically unmute
+jspulse --mic-volume Mic 70         # select a capture control
+jspulse --mute Master               # hardware playback switch off
+jspulse --unmute Master
+jspulse --card 1 --volume 60
+jspulse --audio-info                # English card/control information
+jspulse --audio-info-zh             # Traditional Chinese information
+```
+
+Mixer options may be combined with `--alsa`; controls are applied before the
+server starts. A short control name such as `Master`, `PCM`, `Mic`, or
+`Capture` is expanded to the corresponding playback/capture volume. Full
+names may be quoted. Setting any numeric volume, including zero, automatically
+enables the corresponding switch when one exists. The compatibility options
+`--playback-control NAME` and `--capture-control NAME` are also available.
+
 `--sles` drives Android's native `libOpenSLES.so` directly through Bun FFI.
 It follows Termux's `module-sles-sink` engine/output-mix/buffer-queue design
 and includes its own Android platform-linker namespace loader. It does not
