@@ -32,5 +32,17 @@ contributors identified below and in the source-file notices.
 - `packages/libandroid-stub/platform-ns.c` is NCSA-licensed; the JavaScript
   port preserves that notice in `LICENSES/NCSA.txt`.
 
+## ALSA
+
+- Upstream: https://github.com/alsa-project/alsa-lib
+- Referenced file: `src/pcm/pcm_params.c`
+- Referenced kernel UAPI: `include/uapi/sound/asound.h`
+- License for the userspace parameter-selection design: LGPL-2.1-or-later
+- Full text: `LICENSES/LGPL-2.1.txt`
+- The JavaScript PCM backend follows the `HW_REFINE`/`HW_PARAMS` selection
+  order designed by Abramo Bagnara and other ALSA contributors. Kernel UAPI
+  constants and layouts are used only as the public Linux userspace ABI; no
+  ALSA kernel implementation code is redistributed.
+
 Android and OpenSL ES are trademarks of their respective owners. Android
 system libraries are loaded from the device and are not distributed here.

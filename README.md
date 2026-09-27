@@ -104,5 +104,10 @@ the practical Android behavior that this JavaScript port follows. Their work
 is the reason a standalone Bun implementation can interoperate with libpulse
 clients and Android's audio system.
 
+The direct ALSA PCM parameter selection follows the LGPL-2.1-or-later
+`alsa-lib` design by Abramo Bagnara and other ALSA contributors. The runtime
+does not link to or load `libasound`.
+
 - PulseAudio: https://gitlab.freedesktop.org/pulseaudio/pulseaudio
 - Termux packages: https://github.com/termux/termux-packages
+- ALSA library: https://github.com/alsa-project/alsa-lib
