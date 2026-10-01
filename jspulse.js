@@ -10,6 +10,7 @@ import {availablePcmDevices,describePcmDevice} from "./lib/alsa-pcm.js";
 const help=`Usage:
   jspulse --alsa
   jspulse --sles
+  jspulse --win32
   jspulse --play [FREQUENCY[xSECONDS]]
   jspulse [--card N] --volume [CONTROL] [0-100]
   jspulse [--card N] --mic-volume [CONTROL] [0-100]
@@ -17,6 +18,7 @@ const help=`Usage:
 Audio server:
   --alsa                       Use the direct ALSA kernel PCM backend
   --sles                       Use the native Android OpenSL ES backend
+  --win32                      Use native Windows waveform audio (Win32 API)
   --play [FREQUENCY[xSECONDS]] Play a sine tone (default: 432 Hz for 3 seconds;
                                x-1 plays until Ctrl-C)
 
@@ -48,7 +50,7 @@ for(let i=0;i<argv.length;i++){
   const a=argv[i],next=argv[i+1];
   if(a==="-h"||a==="--help")options.help=true;
   else if(a==="--readme")options.readme=true;
-  else if(a==="--alsa"||a==="--sles")options.mode=a.slice(2);
+  else if(a==="--alsa"||a==="--sles"||a==="--win32")options.mode=a.slice(2);
   else if(a==="--play"){options.play=next!=null&&!next.startsWith("--")?argv[++i]:"";}
   else if(a==="--card")options.card=Number(argv[++i]);
   else if(a==="--playback-control")options.playbackControl=argv[++i];
@@ -76,8 +78,8 @@ if(mixerRequested){const infoOnly=options.info&&!("volume" in options)&&!("micVo
 }
 
 const mode=options.mode;
-if(options.tone){const androidAudio=(existsSync("/system/lib64/libOpenSLES.so")||existsSync("/system/lib/libOpenSLES.so"))&&(existsSync("/system/bin/linker64")||existsSync("/system/bin/linker")),toneMode=mode||(androidAudio?"sles":availablePcmDevices("playback").length?"alsa":null);if(!toneMode){console.error("--play requires an Android OpenSL ES or ALSA PCM device");process.exit(1);}console.log(`jspulse: playing ${options.tone.frequency} Hz${options.tone.duration===-1?" until Ctrl-C":` for ${options.tone.duration} seconds`} via ${toneMode}`);if(toneMode==="alsa"&&!("mute" in options)){const card=options.card??Number(availablePcmDevices("playback")[0].match(/pcmC(\d+)/)[1]);let ctl;try{ctl=new AlsaControl(card);try{ctl.mute("playback",false,options.playbackControl);}catch(error){console.error(`jspulse: cannot unmute playback: ${error.message}`);}console.log(showVolume(ctl.volume("playback",null,options.playbackControl)));}catch(error){console.error(`jspulse: cannot read playback volume: ${error.message}`);}finally{ctl?.close();}}await playTone(await createBackend(toneMode),options.tone);process.exit(0);}
-if(!mode){if(mixerRequested)process.exit(0);console.error("Usage: jspulse --alsa | --sles | --play [FREQUENCY[xSECONDS]] | --audio-info[-zh]\nRun 'jspulse --help' or 'jspulse -h' for complete usage.");process.exit(2);}
+if(options.tone){const androidAudio=(existsSync("/system/lib64/libOpenSLES.so")||existsSync("/system/lib/libOpenSLES.so"))&&(existsSync("/system/bin/linker64")||existsSync("/system/bin/linker")),toneMode=mode||(process.platform==="win32"?"win32":androidAudio?"sles":availablePcmDevices("playback").length?"alsa":null);if(!toneMode){console.error("--play requires a Windows, Android OpenSL ES, or ALSA PCM device");process.exit(1);}console.log(`jspulse: playing ${options.tone.frequency} Hz${options.tone.duration===-1?" until Ctrl-C":` for ${options.tone.duration} seconds`} via ${toneMode}`);if(toneMode==="alsa"&&!("mute" in options)){const card=options.card??Number(availablePcmDevices("playback")[0].match(/pcmC(\d+)/)[1]);let ctl;try{ctl=new AlsaControl(card);try{ctl.mute("playback",false,options.playbackControl);}catch(error){console.error(`jspulse: cannot unmute playback: ${error.message}`);}console.log(showVolume(ctl.volume("playback",null,options.playbackControl)));}catch(error){console.error(`jspulse: cannot read playback volume: ${error.message}`);}finally{ctl?.close();}}await playTone(await createBackend(toneMode),options.tone);process.exit(0);}
+if(!mode){if(mixerRequested)process.exit(0);console.error("Usage: jspulse --alsa | --sles | --win32 | --play [FREQUENCY[xSECONDS]] | --audio-info[-zh]\nRun 'jspulse --help' or 'jspulse -h' for complete usage.");process.exit(2);}
 
 const backend = await createBackend(mode);
 const server = new PulseServer({ backend, host: "127.0.0.1", port: 4713 });

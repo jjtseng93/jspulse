@@ -10,7 +10,8 @@
   },
   "os": [
     "linux",
-    "android"
+    "android",
+    "win32"
   ],
   "repository": {
     "type": "git",
@@ -37,6 +38,7 @@
   "scripts": {
     "alsa": "bun ./jspulse.js --alsa",
     "sles": "bun ./jspulse.js --sles",
+    "win32": "bun ./jspulse.js --win32",
     "play": "bun ./jspulse.js --play",
     "volume": "bun ./jspulse.js --volume",
     "test": "bun test"

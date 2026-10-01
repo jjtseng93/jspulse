@@ -2,12 +2,14 @@
 
 jspulse is a JavaScript/Bun port of the PulseAudio native protocol and the
 Termux PulseAudio Android OpenSL ES source/sink work. It runs the protocol and
-audio backend in the Bun process without starting a PulseAudio daemon.
+audio backend in the Bun process without starting a PulseAudio daemon. Windows
+playback and capture use the native Win32 waveform API directly.
 
 **Hard implementation rule:** jspulse must never spawn or depend on external
 audio tools or helper executables. All protocol, audio, mixer, and tone logic
 must remain JavaScript running inside Bun. Native interaction is limited to
-libc system calls/ioctls and Android's system OpenSL ES API through Bun FFI.
+libc system calls/ioctls, Android's system OpenSL ES API, and Windows
+`winmm.dll` waveform APIs through Bun FFI.
 Commands such as `aplay`, `arecord`, `amixer`, `tinyplay`, and a PulseAudio
 daemon are never called by jspulse, and `libasound` is not used.
 
@@ -23,6 +25,8 @@ it through the package's `#!/usr/bin/env bun` entry point:
 npx @drxiaozhi/jspulse --volume 50
 npx @drxiaozhi/jspulse --alsa    # direct ALSA kernel PCM backend
 bunx @drxiaozhi/jspulse --sles   # Android native OpenSL ES backend
+# On Windows:
+bunx @drxiaozhi/jspulse --win32 # native Win32 playback/capture server
 export PULSE_SERVER=127.0.0.1
 paplay sound.wav
 ```
@@ -41,12 +45,15 @@ jspulse --play 442x0.5              # 442 Hz for half a second
 jspulse --play 442x-1               # keep playing until Ctrl-C
 jspulse --alsa --play 440x1         # explicitly select ALSA
 jspulse --sles --play 440x1         # explicitly select Android OpenSL ES
+jspulse --win32 --play 440x1        # explicitly select Win32 waveform audio
 ```
 
 The special duration `-1` plays continuously until `Ctrl-C`; other negative
 durations are rejected. The test tone uses a safe fixed 20% digital amplitude and does not start the
 Pulse server. Without an explicit backend, jspulse checks for actual Android
-OpenSL ES files and otherwise uses an available `/dev/snd/pcm*` device.
+OpenSL ES files and otherwise uses an available `/dev/snd/pcm*` device. On
+Windows it automatically selects the Win32 backend, so plain `jspulse --play`
+works without another flag.
 
 Run `jspulse --help` for concise CLI usage or `jspulse --readme` to render
 this complete README in the terminal with `Bun.markdown.ansi`.
@@ -97,6 +104,13 @@ closes. Recording opens the capture device for one stream at a time.
 Recording requires the Android host application that launches Bun to declare
 and receive the `android.permission.RECORD_AUDIO` runtime permission. Playback
 does not require that permission.
+
+`--win32` opens the same Pulse-compatible server on `127.0.0.1:4713` using
+`waveOut*` for the default sink and `waveIn*` for the default source. Bun loads
+`winmm.dll` and calls those APIs directly through FFI; no PowerShell audio,
+helper executable, native addon, or PulseAudio daemon is used. Wave buffers are
+polled rather than driven by native callbacks, keeping callback lifetime and
+threading entirely on Bun's event loop.
 
 The intentionally old advertised protocol version disables shared-memory and
 cookie-era extensions while remaining compatible with current libpulse. Audio
