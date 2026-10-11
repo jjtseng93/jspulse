@@ -14,7 +14,7 @@ Commands such as `aplay`, `arecord`, `amixer`, `tinyplay`, and a PulseAudio
 daemon are never called by jspulse, and `libasound` is not used.
 
 It listens only
-on `127.0.0.1:4713`, always accepts anonymous clients, and creates one default
+on `127.0.0.1` (port `4713` by default), always accepts anonymous clients, and creates one default
 source and sink automatically. It does not read or create a Pulse cookie.
 
 jspulse runs on Bun (`bun:ffi`), so Bun must be on `PATH`; `npx` then starts
@@ -29,6 +29,15 @@ bunx @drxiaozhi/jspulse --sles   # Android native OpenSL ES backend
 bunx @drxiaozhi/jspulse --win32 # native Win32 playback/capture server
 export PULSE_SERVER=127.0.0.1
 paplay sound.wav
+```
+
+Use `-p PORT`, `--port PORT`, or `--port=PORT` to choose a different server port
+on any backend. Port `0` selects a free port; the startup message prints the
+actual port. The bind address stays localhost-only.
+
+```sh
+bunx @drxiaozhi/jspulse --sles -p 4714
+export PULSE_SERVER=tcp:127.0.0.1:4714
 ```
 
 Play a 432 Hz sine tone for three seconds, or choose a frequency and duration.
@@ -115,6 +124,34 @@ threading entirely on Bun's event loop.
 The intentionally old advertised protocol version disables shared-memory and
 cookie-era extensions while remaining compatible with current libpulse. Audio
 is carried inline over the same TCP connection.
+
+### Playback timing and synchronization
+
+All playback backends expose the same measured queue timing to the existing
+PulseAudio `GET_PLAYBACK_LATENCY` request. No platform-specific fixed A/V offset
+is applied. Unknown timing returns a protocol error, not a fabricated zero.
+
+- ALSA measures hardware `DELAY` and the software queue in the negotiated
+  hardware sample format/rate.
+- Windows counts uncompleted `waveOut` buffers, using `WHDR_DONE` to retire them.
+- Android OpenSL ES counts both pending and native-queued buffers, retiring them
+  on consumption callbacks. Output credits now wait for queue space too.
+
+Windows and ALSA's shared mixer tracks each input's samples on the sink timeline.
+Another stream's sound/silence is not counted as progress in a starved input.
+Drain waits for measured completion, including when playback stalls.
+Buffer-completion backends have buffer-sized timing resolution; this does not
+measure any additional unreported downstream Bluetooth or hardware latency.
+
+Timing adapters live in separate `*-timing.js` modules; the existing backend,
+mixer and protocol files contain only integration hooks.
+Run `bun test` for platform-independent tests. An optional real-device test
+writes silence without starting or replacing a server:
+
+```sh
+JSPULSE_TEST_BACKEND=sles bun test test/playback-device.test.js
+# Use alsa or win32 on the corresponding native platform.
+```
 
 ## License and credits
 

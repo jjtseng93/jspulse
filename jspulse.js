@@ -6,6 +6,7 @@ import {AlsaControl,availableCards,formatAudioInfo} from "./lib/alsa-control.js"
 import {existsSync} from "node:fs";
 import {parseTone,playTone} from "./lib/tone.js";
 import {availablePcmDevices,describePcmDevice} from "./lib/alsa-pcm.js";
+import {parsePortOptions} from "./lib/port-options.js";
 
 const help=`Usage:
   jspulse --alsa
@@ -19,6 +20,7 @@ Audio server:
   --alsa                       Use the direct ALSA kernel PCM backend
   --sles                       Use the native Android OpenSL ES backend
   --win32                      Use native Windows waveform audio (Win32 API)
+  -p, --port PORT              Listen on this TCP port (default: 4713; 0: free port)
   --play [FREQUENCY[xSECONDS]] Play a sine tone (default: 432 Hz for 3 seconds;
                                x-1 plays until Ctrl-C)
 
@@ -40,12 +42,15 @@ Information:
   -h, --help                   Show this help and exit
   --readme                     Render README.md in the terminal and exit
 
-Set PULSE_SERVER=127.0.0.1 for PulseAudio clients. Numeric volumes are
+Set PULSE_SERVER=tcp:127.0.0.1:PORT for PulseAudio clients. Numeric volumes are
 percentages; setting one automatically unmutes the corresponding switch.
 Volume and mute options control the ALSA hardware mixer and do not apply to
 Android; use the Android system volume there.`;
 
-const argv=process.argv.slice(2),options={card:null};
+let argv,port;
+try{({args:argv,port}=parsePortOptions(process.argv.slice(2)));}
+catch(error){console.error(error.message);process.exit(2);}
+const options={card:null};
 for(let i=0;i<argv.length;i++){
   const a=argv[i],next=argv[i+1];
   if(a==="-h"||a==="--help")options.help=true;
@@ -82,10 +87,10 @@ if(options.tone){const androidAudio=(existsSync("/system/lib64/libOpenSLES.so")|
 if(!mode){if(mixerRequested)process.exit(0);console.error("Usage: jspulse --alsa | --sles | --win32 | --play [FREQUENCY[xSECONDS]] | --audio-info[-zh]\nRun 'jspulse --help' or 'jspulse -h' for complete usage.");process.exit(2);}
 
 const backend = await createBackend(mode);
-const server = new PulseServer({ backend, host: "127.0.0.1", port: 4713 });
+const server = new PulseServer({ backend, host: "127.0.0.1", port });
 await server.listen();
 if(mode==="alsa")for(const direction of ["playback","capture"]){const devices=availablePcmDevices(direction);if(!devices.length)console.log(`jspulse: no ALSA ${direction} PCM device found`);for(const path of devices)console.log(`jspulse: ${direction} ${path}: ${describePcmDevice(path)}`);}
-console.log(`jspulse: ${mode} source/sink ready on 127.0.0.1:4713 (anonymous)`);
+console.log(`jspulse: ${mode} source/sink ready on 127.0.0.1:${server.server.address().port} (anonymous)`);
 
 const stop = async () => {
   await server.close();
