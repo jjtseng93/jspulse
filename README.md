@@ -95,6 +95,27 @@ server starts. A short control name such as `Master`, `PCM`, `Mic`, or
 names may be quoted. Setting any numeric volume, including zero, automatically
 enables the corresponding switch when one exists. The compatibility options
 `--playback-control NAME` and `--capture-control NAME` are also available.
+
+`--card N` selects the ALSA card for hardware mixer operations, PCM playback,
+and PCM capture, including both the server and test tone:
+
+```sh
+jspulse --alsa --card 1
+jspulse --alsa --card 1 --play 440x1
+```
+
+Without `--card`, mixer commands retain card 0 and PCM uses the first available
+device for each direction. With an explicit card, the first PCM of each direction
+on that card is used; an absent playback/capture device fails when that direction
+is requested, without falling back to another card. Multiple HDMI PCM outputs on
+one card cannot yet be selected individually. `--card` is not supported by the
+OpenSL ES or Windows backend. A missing hardware volume control does not prevent
+test-tone playback.
+
+中文：`--card 1` 同時選擇音量控制、播放與錄音的音效卡，適用於 `--alsa`
+伺服器和 `--play`。指定卡沒有對應 PCM 時會報錯，不會改用其他卡；不指定則
+保留原本預設。多個 HDMI 輸出仍取該卡第一個 PCM，尚未提供 device 選擇參數。
+
 The ioctl binding checks the filesystem for an actual libc file. It prefers
 Buninu's independent `/lib/libc.musl-<arch>.so.1`, then checks standard glibc
 and Android bionic paths; it never guesses from an environment variable or

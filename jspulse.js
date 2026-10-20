@@ -9,10 +9,10 @@ import {availablePcmDevices,describePcmDevice} from "./lib/alsa-pcm.js";
 import {parsePortOptions} from "./lib/port-options.js";
 
 const help=`Usage:
-  jspulse --alsa
+  jspulse --alsa [--card N]
   jspulse --sles
   jspulse --win32
-  jspulse --play [FREQUENCY[xSECONDS]]
+  jspulse --play [FREQUENCY[xSECONDS]] [--card N]
   jspulse [--card N] --volume [CONTROL] [0-100]
   jspulse [--card N] --mic-volume [CONTROL] [0-100]
 
@@ -32,7 +32,7 @@ ALSA mixer:
   --unmute [CONTROL]           Unmute playback
   --mic-mute [CONTROL]         Mute capture
   --mic-unmute [CONTROL]       Unmute capture
-  --card N                     Select ALSA card (default: 0)
+  --card N                     Select ALSA mixer/playback/capture card
   --playback-control NAME      Select the full playback control name
   --capture-control NAME       Select the full capture control name
   --audio-info                 Show ALSA card and control information
@@ -57,7 +57,10 @@ for(let i=0;i<argv.length;i++){
   else if(a==="--readme")options.readme=true;
   else if(a==="--alsa"||a==="--sles"||a==="--win32")options.mode=a.slice(2);
   else if(a==="--play"){options.play=next!=null&&!next.startsWith("--")?argv[++i]:"";}
-  else if(a==="--card")options.card=Number(argv[++i]);
+  else if(a==="--card"){
+    if(next==null||!/^\d+$/.test(next)||!Number.isSafeInteger(Number(next))){console.error("--card expects a non-negative integer");process.exit(2);}
+    options.card=Number(argv[++i]);
+  }
   else if(a==="--playback-control")options.playbackControl=argv[++i];
   else if(a==="--capture-control")options.captureControl=argv[++i];
   else if(a==="--volume"||a==="--mic-volume"){
@@ -76,6 +79,7 @@ if(options.help){console.log(help);process.exit(0);}
 if(options.readme){process.stdout.write(Bun.markdown.ansi(await Bun.file(new URL("./README.md",import.meta.url)).text(),{hyperlinks:true}));process.exit(0);}
 if("play" in options)try{options.tone=parseTone(options.play);}catch(error){console.error(error.message);process.exit(2);}
 
+if(options.card!=null&&(options.mode==="sles"||options.mode==="win32")){console.error("--card requires the ALSA backend");process.exit(2);}
 const mixerRequested=options.info||"volume" in options||"micVolume" in options||"mute" in options||"micMute" in options;
 if(options.mode==="sles"&&mixerRequested){console.error("ALSA mixer options cannot be used with --sles");process.exit(2);}
 const showVolume=r=>`${r.element.name}: ${r.percent.join("%, ")}%${r.muted==null?"":` (${r.muted?"muted":"unmuted"})`}`;
@@ -83,10 +87,10 @@ if(mixerRequested){const infoOnly=options.info&&!("volume" in options)&&!("micVo
 }
 
 const mode=options.mode;
-if(options.tone){const androidAudio=(existsSync("/system/lib64/libOpenSLES.so")||existsSync("/system/lib/libOpenSLES.so"))&&(existsSync("/system/bin/linker64")||existsSync("/system/bin/linker")),toneMode=mode||(process.platform==="win32"?"win32":androidAudio?"sles":availablePcmDevices("playback").length?"alsa":null);if(!toneMode){console.error("--play requires a Windows, Android OpenSL ES, or ALSA PCM device");process.exit(1);}console.log(`jspulse: playing ${options.tone.frequency} Hz${options.tone.duration===-1?" until Ctrl-C":` for ${options.tone.duration} seconds`} via ${toneMode}`);if(toneMode==="alsa"&&!("mute" in options)){const card=options.card??Number(availablePcmDevices("playback")[0].match(/pcmC(\d+)/)[1]);let ctl;try{ctl=new AlsaControl(card);try{ctl.mute("playback",false,options.playbackControl);}catch(error){console.error(`jspulse: cannot unmute playback: ${error.message}`);}console.log(showVolume(ctl.volume("playback",null,options.playbackControl)));}catch(error){console.error(`jspulse: cannot read playback volume: ${error.message}`);}finally{ctl?.close();}}await playTone(await createBackend(toneMode),options.tone);process.exit(0);}
+if(options.tone){const androidAudio=(existsSync("/system/lib64/libOpenSLES.so")||existsSync("/system/lib/libOpenSLES.so"))&&(existsSync("/system/bin/linker64")||existsSync("/system/bin/linker")),toneMode=mode||(process.platform==="win32"?"win32":androidAudio?"sles":availablePcmDevices("playback").length?"alsa":null);if(!toneMode){console.error("--play requires a Windows, Android OpenSL ES, or ALSA PCM device");process.exit(1);}if(options.card!=null&&toneMode!=="alsa"){console.error("--card requires the ALSA backend");process.exit(2);}const toneBackend=await createBackend(toneMode,{card:options.card});console.log(`jspulse: playing ${options.tone.frequency} Hz${options.tone.duration===-1?" until Ctrl-C":` for ${options.tone.duration} seconds`} via ${toneMode}`);if(toneMode==="alsa"&&!("mute" in options)){const card=Number(toneBackend.pcmPath("playback").match(/pcmC(\d+)/)[1]);let ctl;try{ctl=new AlsaControl(card);try{ctl.mute("playback",false,options.playbackControl);}catch(error){console.error(`jspulse: cannot unmute playback: ${error.message}`);}console.log(showVolume(ctl.volume("playback",null,options.playbackControl)));}catch(error){console.error(`jspulse: cannot read playback volume: ${error.message}`);}finally{ctl?.close();}}await playTone(toneBackend,options.tone);process.exit(0);}
 if(!mode){if(mixerRequested)process.exit(0);console.error("Usage: jspulse --alsa | --sles | --win32 | --play [FREQUENCY[xSECONDS]] | --audio-info[-zh]\nRun 'jspulse --help' or 'jspulse -h' for complete usage.");process.exit(2);}
 
-const backend = await createBackend(mode);
+const backend = await createBackend(mode,{card:options.card});
 const server = new PulseServer({ backend, host: "127.0.0.1", port });
 await server.listen();
 if(mode==="alsa")for(const direction of ["playback","capture"]){const devices=availablePcmDevices(direction);if(!devices.length)console.log(`jspulse: no ALSA ${direction} PCM device found`);for(const path of devices)console.log(`jspulse: ${direction} ${path}: ${describePcmDevice(path)}`);}
