@@ -2,13 +2,17 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 import { PulseServer } from "./lib/server.js";
 import { createBackend } from "./lib/audio.js";
-import {AlsaControl,availableCards,formatAudioInfo} from "./lib/alsa-control.js";
-import {existsSync} from "node:fs";
-import {parseTone,playTone} from "./lib/tone.js";
-import {availablePcmDevices,describePcmDevice} from "./lib/alsa-pcm.js";
-import {parsePortOptions} from "./lib/port-options.js";
+import {
+  AlsaControl,
+  availableCards,
+  formatAudioInfo,
+} from "./lib/alsa-control.js";
+import { existsSync } from "node:fs";
+import { parseTone, playTone } from "./lib/tone.js";
+import { availablePcmDevices, describePcmDevice } from "./lib/alsa-pcm.js";
+import { parsePortOptions } from "./lib/port-options.js";
 
-const help=`Usage:
+const help = `Usage:
   jspulse --alsa [--card N]
   jspulse --sles
   jspulse --win32
@@ -47,54 +51,233 @@ percentages; setting one automatically unmutes the corresponding switch.
 Volume and mute options control the ALSA hardware mixer and do not apply to
 Android; use the Android system volume there.`;
 
-let argv,port;
-try{({args:argv,port}=parsePortOptions(process.argv.slice(2)));}
-catch(error){console.error(error.message);process.exit(2);}
-const options={card:null};
-for(let i=0;i<argv.length;i++){
-  const a=argv[i],next=argv[i+1];
-  if(a==="-h"||a==="--help")options.help=true;
-  else if(a==="--readme")options.readme=true;
-  else if(a==="--alsa"||a==="--sles"||a==="--win32")options.mode=a.slice(2);
-  else if(a==="--play"){options.play=next!=null&&!next.startsWith("--")?argv[++i]:"";}
-  else if(a==="--card"){
-    if(next==null||!/^\d+$/.test(next)||!Number.isSafeInteger(Number(next))){console.error("--card expects a non-negative integer");process.exit(2);}
-    options.card=Number(argv[++i]);
+let argv, port;
+try {
+  ({ args: argv, port } = parsePortOptions(process.argv.slice(2)));
+} catch (error) {
+  console.error(error.message);
+  process.exit(2);
+}
+const options = { card: null };
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i],
+    next = argv[i + 1];
+  if (a === "-h" || a === "--help") options.help = true;
+  else if (a === "--readme") options.readme = true;
+  else if (a === "--alsa" || a === "--sles" || a === "--win32")
+    options.mode = a.slice(2);
+  else if (a === "--play") {
+    options.play = next != null && !next.startsWith("--") ? argv[++i] : "";
+  } else if (a === "--card") {
+    if (
+      next == null ||
+      !/^\d+$/.test(next) ||
+      !Number.isSafeInteger(Number(next))
+    ) {
+      console.error("--card expects a non-negative integer");
+      process.exit(2);
+    }
+    options.card = Number(argv[++i]);
+  } else if (a === "--playback-control") options.playbackControl = argv[++i];
+  else if (a === "--capture-control") options.captureControl = argv[++i];
+  else if (a === "--volume" || a === "--mic-volume") {
+    const key = a === "--volume" ? "volume" : "micVolume",
+      controlKey = a === "--volume" ? "playbackControl" : "captureControl";
+    if (next == null || next.startsWith("--")) options[key] = null;
+    else if (Number.isFinite(Number(next))) {
+      options[key] = Number(next);
+      i++;
+    } else {
+      options[controlKey] = next;
+      i++;
+      const value = argv[i + 1];
+      if (value == null || value.startsWith("--")) options[key] = null;
+      else if (Number.isFinite(Number(value))) {
+        options[key] = Number(value);
+        i++;
+      } else {
+        console.error(`${a}: expected a volume from 0 to 100 after ${next}`);
+        process.exit(2);
+      }
+    }
+  } else if (a === "--mute" || a === "--unmute") {
+    options.mute = a === "--mute";
+    if (next != null && !next.startsWith("--")) {
+      options.playbackControl = next;
+      i++;
+    }
+  } else if (a === "--mic-mute" || a === "--mic-unmute") {
+    options.micMute = a === "--mic-mute";
+    if (next != null && !next.startsWith("--")) {
+      options.captureControl = next;
+      i++;
+    }
+  } else if (a === "--audio-info" || a === "--audio-info-zh")
+    options.info = a.endsWith("-zh") ? "zh" : "en";
+  else {
+    console.error(`Unknown option: ${a}`);
+    process.exit(2);
   }
-  else if(a==="--playback-control")options.playbackControl=argv[++i];
-  else if(a==="--capture-control")options.captureControl=argv[++i];
-  else if(a==="--volume"||a==="--mic-volume"){
-    const key=a==="--volume"?"volume":"micVolume",controlKey=a==="--volume"?"playbackControl":"captureControl";
-    if(next==null||next.startsWith("--"))options[key]=null;
-    else if(Number.isFinite(Number(next))){options[key]=Number(next);i++;}
-    else {options[controlKey]=next;i++;const value=argv[i+1];if(value==null||value.startsWith("--"))options[key]=null;else if(Number.isFinite(Number(value))){options[key]=Number(value);i++;}else {console.error(`${a}: expected a volume from 0 to 100 after ${next}`);process.exit(2);}}
-  }
-  else if(a==="--mute"||a==="--unmute"){options.mute=a==="--mute";if(next!=null&&!next.startsWith("--")){options.playbackControl=next;i++;}}
-  else if(a==="--mic-mute"||a==="--mic-unmute"){options.micMute=a==="--mic-mute";if(next!=null&&!next.startsWith("--")){options.captureControl=next;i++;}}
-  else if(a==="--audio-info"||a==="--audio-info-zh")options.info=a.endsWith("-zh")?"zh":"en";
-  else {console.error(`Unknown option: ${a}`);process.exit(2);}
 }
 
-if(options.help){console.log(help);process.exit(0);}
-if(options.readme){process.stdout.write(Bun.markdown.ansi(await Bun.file(new URL("./README.md",import.meta.url)).text(),{hyperlinks:true}));process.exit(0);}
-if("play" in options)try{options.tone=parseTone(options.play);}catch(error){console.error(error.message);process.exit(2);}
+if (options.help) {
+  console.log(help);
+  process.exit(0);
+}
+if (options.readme) {
+  process.stdout.write(
+    Bun.markdown.ansi(
+      await Bun.file(new URL("./README.md", import.meta.url)).text(),
+      { hyperlinks: true },
+    ),
+  );
+  process.exit(0);
+}
+if ("play" in options)
+  try {
+    options.tone = parseTone(options.play);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(2);
+  }
 
-if(options.card!=null&&(options.mode==="sles"||options.mode==="win32")){console.error("--card requires the ALSA backend");process.exit(2);}
-const mixerRequested=options.info||"volume" in options||"micVolume" in options||"mute" in options||"micMute" in options;
-if(options.mode==="sles"&&mixerRequested){console.error("ALSA mixer options cannot be used with --sles");process.exit(2);}
-const showVolume=r=>`${r.element.name}: ${r.percent.join("%, ")}%${r.muted==null?"":` (${r.muted?"muted":"unmuted"})`}`;
-if(mixerRequested){const infoOnly=options.info&&!("volume" in options)&&!("micVolume" in options)&&!("mute" in options)&&!("micMute" in options),cards=options.card==null&&infoOnly?availableCards():[options.card??0];if(!cards.length){console.error("No ALSA control devices found");process.exit(1);}for(const card of cards){let ctl;try{ctl=new AlsaControl(card);if(options.info)console.log(formatAudioInfo(ctl.snapshot(),options.info==="zh"));if("volume" in options)console.log(showVolume(ctl.volume("playback",options.volume,options.playbackControl)));if("micVolume" in options)console.log(showVolume(ctl.volume("capture",options.micVolume,options.captureControl)));if("mute" in options){const r=ctl.mute("playback",options.mute,options.playbackControl);console.log(`${r.element.name}: ${r.muted?"muted":"unmuted"}`);}if("micMute" in options){const r=ctl.mute("capture",options.micMute,options.captureControl);console.log(`${r.element.name}: ${r.muted?"muted":"unmuted"}`);}}finally{ctl?.close();}}
+if (
+  options.card != null &&
+  (options.mode === "sles" || options.mode === "win32")
+) {
+  console.error("--card requires the ALSA backend");
+  process.exit(2);
+}
+const mixerRequested =
+  options.info ||
+  "volume" in options ||
+  "micVolume" in options ||
+  "mute" in options ||
+  "micMute" in options;
+if (options.mode === "sles" && mixerRequested) {
+  console.error("ALSA mixer options cannot be used with --sles");
+  process.exit(2);
+}
+const showVolume = (r) =>
+  `${r.element.name}: ${r.percent.join("%, ")}%${r.muted == null ? "" : ` (${r.muted ? "muted" : "unmuted"})`}`;
+if (mixerRequested) {
+  const infoOnly =
+      options.info &&
+      !("volume" in options) &&
+      !("micVolume" in options) &&
+      !("mute" in options) &&
+      !("micMute" in options),
+    cards =
+      options.card == null && infoOnly ? availableCards() : [options.card ?? 0];
+  if (!cards.length) {
+    console.error("No ALSA control devices found");
+    process.exit(1);
+  }
+  for (const card of cards) {
+    let ctl;
+    try {
+      ctl = new AlsaControl(card);
+      if (options.info)
+        console.log(formatAudioInfo(ctl.snapshot(), options.info === "zh"));
+      if ("volume" in options)
+        console.log(
+          showVolume(
+            ctl.volume("playback", options.volume, options.playbackControl),
+          ),
+        );
+      if ("micVolume" in options)
+        console.log(
+          showVolume(
+            ctl.volume("capture", options.micVolume, options.captureControl),
+          ),
+        );
+      if ("mute" in options) {
+        const r = ctl.mute("playback", options.mute, options.playbackControl);
+        console.log(`${r.element.name}: ${r.muted ? "muted" : "unmuted"}`);
+      }
+      if ("micMute" in options) {
+        const r = ctl.mute("capture", options.micMute, options.captureControl);
+        console.log(`${r.element.name}: ${r.muted ? "muted" : "unmuted"}`);
+      }
+    } finally {
+      ctl?.close();
+    }
+  }
 }
 
-const mode=options.mode;
-if(options.tone){const androidAudio=(existsSync("/system/lib64/libOpenSLES.so")||existsSync("/system/lib/libOpenSLES.so"))&&(existsSync("/system/bin/linker64")||existsSync("/system/bin/linker")),toneMode=mode||(process.platform==="win32"?"win32":androidAudio?"sles":availablePcmDevices("playback").length?"alsa":null);if(!toneMode){console.error("--play requires a Windows, Android OpenSL ES, or ALSA PCM device");process.exit(1);}if(options.card!=null&&toneMode!=="alsa"){console.error("--card requires the ALSA backend");process.exit(2);}const toneBackend=await createBackend(toneMode,{card:options.card});console.log(`jspulse: playing ${options.tone.frequency} Hz${options.tone.duration===-1?" until Ctrl-C":` for ${options.tone.duration} seconds`} via ${toneMode}`);if(toneMode==="alsa"&&!("mute" in options)){const card=Number(toneBackend.pcmPath("playback").match(/pcmC(\d+)/)[1]);let ctl;try{ctl=new AlsaControl(card);try{ctl.mute("playback",false,options.playbackControl);}catch(error){console.error(`jspulse: cannot unmute playback: ${error.message}`);}console.log(showVolume(ctl.volume("playback",null,options.playbackControl)));}catch(error){console.error(`jspulse: cannot read playback volume: ${error.message}`);}finally{ctl?.close();}}await playTone(toneBackend,options.tone);process.exit(0);}
-if(!mode){if(mixerRequested)process.exit(0);console.error("Usage: jspulse --alsa | --sles | --win32 | --play [FREQUENCY[xSECONDS]] | --audio-info[-zh]\nRun 'jspulse --help' or 'jspulse -h' for complete usage.");process.exit(2);}
+const mode = options.mode;
+if (options.tone) {
+  const androidAudio =
+      (existsSync("/system/lib64/libOpenSLES.so") ||
+        existsSync("/system/lib/libOpenSLES.so")) &&
+      (existsSync("/system/bin/linker64") || existsSync("/system/bin/linker")),
+    toneMode =
+      mode ||
+      (process.platform === "win32"
+        ? "win32"
+        : androidAudio
+          ? "sles"
+          : availablePcmDevices("playback").length
+            ? "alsa"
+            : null);
+  if (!toneMode) {
+    console.error(
+      "--play requires a Windows, Android OpenSL ES, or ALSA PCM device",
+    );
+    process.exit(1);
+  }
+  if (options.card != null && toneMode !== "alsa") {
+    console.error("--card requires the ALSA backend");
+    process.exit(2);
+  }
+  const toneBackend = await createBackend(toneMode, { card: options.card });
+  console.log(
+    `jspulse: playing ${options.tone.frequency} Hz${options.tone.duration === -1 ? " until Ctrl-C" : ` for ${options.tone.duration} seconds`} via ${toneMode}`,
+  );
+  if (toneMode === "alsa" && !("mute" in options)) {
+    const card = Number(toneBackend.pcmPath("playback").match(/pcmC(\d+)/)[1]);
+    let ctl;
+    try {
+      ctl = new AlsaControl(card);
+      try {
+        ctl.mute("playback", false, options.playbackControl);
+      } catch (error) {
+        console.error(`jspulse: cannot unmute playback: ${error.message}`);
+      }
+      console.log(
+        showVolume(ctl.volume("playback", null, options.playbackControl)),
+      );
+    } catch (error) {
+      console.error(`jspulse: cannot read playback volume: ${error.message}`);
+    } finally {
+      ctl?.close();
+    }
+  }
+  await playTone(toneBackend, options.tone);
+  process.exit(0);
+}
+if (!mode) {
+  if (mixerRequested) process.exit(0);
+  console.error(
+    "Usage: jspulse --alsa | --sles | --win32 | --play [FREQUENCY[xSECONDS]] | --audio-info[-zh]\nRun 'jspulse --help' or 'jspulse -h' for complete usage.",
+  );
+  process.exit(2);
+}
 
-const backend = await createBackend(mode,{card:options.card});
+const backend = await createBackend(mode, { card: options.card });
 const server = new PulseServer({ backend, host: "127.0.0.1", port });
 await server.listen();
-if(mode==="alsa")for(const direction of ["playback","capture"]){const devices=availablePcmDevices(direction);if(!devices.length)console.log(`jspulse: no ALSA ${direction} PCM device found`);for(const path of devices)console.log(`jspulse: ${direction} ${path}: ${describePcmDevice(path)}`);}
-console.log(`jspulse: ${mode} source/sink ready on 127.0.0.1:${server.server.address().port} (anonymous)`);
+if (mode === "alsa")
+  for (const direction of ["playback", "capture"]) {
+    const devices = availablePcmDevices(direction);
+    if (!devices.length)
+      console.log(`jspulse: no ALSA ${direction} PCM device found`);
+    for (const path of devices)
+      console.log(`jspulse: ${direction} ${path}: ${describePcmDevice(path)}`);
+  }
+console.log(
+  `jspulse: ${mode} source/sink ready on 127.0.0.1:${server.server.address().port} (anonymous)`,
+);
 
 const stop = async () => {
   await server.close();
