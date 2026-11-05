@@ -162,3 +162,175 @@ describe("Pulse server", () => {
     }
   });
 });
+
+const auth = (tag, version) =>
+  packet(command(8, tag).u32(version).arbitrary(new Uint8Array(256)));
+const header = (reply) => [reply.u32(), reply.u32()];
+
+describe("negotiated protocol", () => {
+  test("the default server still answers 8 to a current libpulse", async () => {
+    const server = new PulseServer({ backend: fakeBackend(), port: 0 });
+    await server.listen();
+    const c = await connect(server.server.address().port);
+    try {
+      c.socket.write(auth(1, 35 | 0x80000000));
+      const reply = await c.next();
+      expect([...header(reply), reply.u32()]).toEqual([2, 1, 8]);
+      expect(reply.eof).toBeTrue();
+    } finally {
+      await server.close();
+    }
+  });
+
+  test("--protocol 21 serves pa_stream_new_extended in libpulse's layouts", async () => {
+    const backend = fakeBackend(),
+      specs = [];
+    backend.openPlayback = (spec) => (specs.push(spec), backend.stream);
+    const server = new PulseServer({ backend, port: 0, protocol: 21 });
+    await server.listen();
+    const c = await connect(server.server.address().port);
+    try {
+      // The lower of the two versions, without SHM flags.
+      c.socket.write(auth(1, 35 | 0x80000000));
+      let reply = await c.next();
+      expect([...header(reply), reply.u32()]).toEqual([2, 1, 21]);
+
+      c.socket.write(
+        packet(command(9, 2).proplist([["application.name", "mpv"]])),
+      );
+      reply = await c.next();
+      expect(header(reply)).toEqual([2, 2]);
+      expect(reply.u32()).not.toBe(0xffffffff);
+      expect(reply.eof).toBeTrue();
+
+      c.socket.write(packet(command(20, 3)));
+      reply = await c.next();
+      expect(header(reply)).toEqual([2, 3]);
+      for (let i = 0; i < 4; i++) reply.string();
+      reply.sample();
+      reply.string();
+      reply.string();
+      reply.u32();
+      expect(reply.channelMap()).toEqual([1, 2]);
+      expect(reply.eof).toBeTrue();
+
+      c.socket.write(packet(command(21, 4).u32(0xffffffff).string(null)));
+      reply = await c.next();
+      expect(header(reply)).toEqual([2, 4]);
+      reply.u32();
+      reply.string();
+      reply.string();
+      reply.sample();
+      reply.channelMap();
+      reply.u32();
+      reply.cvolume();
+      reply.bool();
+      reply.u32();
+      reply.string();
+      reply.i += 9; // latency usec
+      reply.string();
+      reply.u32();
+      reply.proplist();
+      reply.i += 9; // configured latency usec
+      reply.i += 5; // base volume
+      reply.u32();
+      reply.u32();
+      reply.u32();
+      expect(reply.u32()).toBe(0);
+      expect(reply.string()).toBeNull();
+      expect(reply.u8()).toBe(1);
+      expect(reply.formatInfo().encoding).toBe(1);
+      expect(reply.eof).toBeTrue();
+
+      // What pa_stream_connect_playback sends for an extended stream: an invalid
+      // sample spec and channel map, with the real format in the list.
+      c.socket.write(
+        packet(
+          command(3, 5)
+            .sample({ format: 255, channels: 0, rate: 0 })
+            .channelMap([])
+            .u32(0xffffffff)
+            .string(null)
+            .u32(0xffffffff)
+            .bool(false)
+            .u32(0xffffffff)
+            .u32(0xffffffff)
+            .u32(0xffffffff)
+            .u32(0xffffffff)
+            .cvolume(32)
+            .bool(false).bool(false).bool(false).bool(false)
+            .bool(false).bool(false).bool(false)
+            .bool(false)
+            .bool(true)
+            .proplist([["media.name", "audio stream"]])
+            .bool(false).bool(false)
+            .bool(false).bool(false).bool(false)
+            .bool(false)
+            .bool(false)
+            .u8(1)
+            .formatInfo(1, [
+              ["format.sample_format", '"float32le"'],
+              ["format.rate", "44100"],
+              ["format.channels", "1"],
+              ["format.channel_map", '"mono"'],
+            ]),
+        ),
+      );
+      reply = await c.next();
+      expect(header(reply)).toEqual([2, 5]);
+      const channel = reply.u32();
+      reply.u32();
+      const requested = reply.u32();
+      expect(requested).toBeGreaterThan(0);
+      const attr = [reply.u32(), reply.u32(), reply.u32(), reply.u32()];
+      expect(attr[0]).toBeGreaterThanOrEqual(attr[1]);
+      expect(reply.sample()).toEqual({ format: 5, channels: 1, rate: 44100 });
+      expect(reply.channelMap()).toEqual([0]);
+      expect(reply.u32()).not.toBe(0xffffffff);
+      expect(reply.string()).toBe("jspulse_sink");
+      expect(reply.bool()).toBeFalse();
+      reply.i += 9; // configured sink latency usec
+      const format = reply.formatInfo();
+      expect(format.encoding).toBe(1);
+      expect(
+        new TextDecoder().decode(format.props.get("format.sample_format")),
+      ).toBe('"float32le"\0');
+      expect(reply.eof).toBeTrue();
+      expect(specs).toEqual([{ format: 5, channels: 1, rate: 44100 }]);
+
+      c.socket.write(
+        packet(command(14, 6).u32(channel).timeval({ sec: 1, usec: 2 })),
+      );
+      reply = await c.next();
+      expect(header(reply)).toEqual([2, 6]);
+      reply.i += 9 + 9 + 1 + 9 + 9 + 9 + 9; // usec, usec, bool, 2 timevals, 2 s64
+      expect(reply.data[reply.i]).toBe(82); // u64 underrun_for
+      reply.i += 9;
+      expect(reply.data[reply.i]).toBe(82); // u64 playing_for
+      reply.i += 9;
+      expect(reply.eof).toBeTrue();
+
+      // Once the backend has played everything, one UNDERFLOW, then quiet until more audio.
+      backend.stream.latencyUsec = () => 0;
+      c.socket.write(audio(channel, new Uint8Array(64)));
+      const underflow = await c.next();
+      expect([underflow.u32(), underflow.u32(), underflow.u32()]).toEqual([
+        63,
+        0xffffffff,
+        channel,
+      ]);
+      expect(underflow.eof).toBeTrue();
+      await Bun.sleep(80);
+      expect(c.packets.length).toBe(0);
+    } finally {
+      await server.close();
+    }
+  });
+
+  test("an out-of-range protocol is refused", () => {
+    for (const protocol of [7, 36, 21.5])
+      expect(
+        () => new PulseServer({ backend: fakeBackend(), port: 0, protocol }),
+      ).toThrow("protocol version");
+  });
+});

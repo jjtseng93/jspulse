@@ -4,14 +4,16 @@ import { connect } from "node:net";
 import { parsePortOptions } from "../lib/port-options.js";
 
 test("port defaults and aliases preserve the existing argument parser", () => {
-  expect(parsePortOptions([])).toEqual({ port: 4713, args: [] });
+  expect(parsePortOptions([])).toEqual({ port: 4713, protocol: 8, args: [] });
   for (const flags of [["-p", "4714"], ["--port", "4714"], ["--port=4714"]]) {
     expect(parsePortOptions(["--sles", ...flags])).toEqual({
       port: 4714,
+      protocol: 8,
       args: ["--sles"],
     });
     expect(parsePortOptions(["--volume", ...flags, "--alsa"])).toEqual({
       port: 4714,
+      protocol: 8,
       args: ["--volume", "--alsa"],
     });
   }
@@ -42,6 +44,35 @@ test("bad ports are rejected before opening a backend", () => {
     );
     expect(result.exitCode).toBe(2);
     expect(result.stderr.toString()).toContain("expected a port");
+  }
+});
+
+test("--protocol opts a server into a newer native protocol", () => {
+  for (const flags of [["--protocol", "21"], ["--protocol=21"]])
+    expect(parsePortOptions(["--sles", ...flags, "-p", "4714"])).toEqual({
+      port: 4714,
+      protocol: 21,
+      args: ["--sles"],
+    });
+  expect(parsePortOptions(["--protocol=35"]).protocol).toBe(35);
+  for (const args of [
+    ["--protocol"],
+    ["--protocol="],
+    ["--protocol", "7"],
+    ["--protocol=36"],
+    ["--protocol=21.0"],
+  ]) {
+    expect(() => parsePortOptions(args)).toThrow("expected a version");
+    const result = Bun.spawnSync(
+      [
+        process.execPath,
+        new URL("../jspulse.js", import.meta.url).pathname,
+        ...args,
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr.toString()).toContain("expected a version");
   }
 });
 

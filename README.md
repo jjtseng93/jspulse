@@ -146,6 +146,20 @@ The intentionally old advertised protocol version disables shared-memory and
 cookie-era extensions while remaining compatible with current libpulse. Audio
 is carried inline over the same TCP connection.
 
+`--protocol VERSION` (8-35) advertises a newer native protocol instead. Each
+connection then uses the lower of that and the client's version, with the
+request and reply layouts of that version; SHM and memfd are still never
+offered. Version 21 or later is what `pa_stream_new_extended()` needs, and so
+libmpv (`ao=pulse`). Clients on a newer protocol are also sent `UNDERFLOW`
+when the backend has played everything they wrote, which libmpv waits for at
+the end of a file. To leave existing clients on version 8, run the newer
+protocol as a second server on its own port:
+
+```sh
+jspulse --sles                               # existing clients, port 4713
+jspulse --sles --port 4714 --protocol 21     # PULSE_SERVER=127.0.0.1:4714
+```
+
 ### Playback timing and synchronization
 
 All playback backends expose the same measured queue timing to the existing

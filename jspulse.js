@@ -25,6 +25,10 @@ Audio server:
   --sles                       Use the native Android OpenSL ES backend
   --win32                      Use native Windows waveform audio (Win32 API)
   -p, --port PORT              Listen on this TCP port (default: 4713; 0: free port)
+  --protocol VERSION           Advertise native protocol 8-35 (default: 8); 21+
+                               lets libmpv and other pa_stream_new_extended
+                               clients connect. Run a second server on its own
+                               port to keep existing clients on 8
   --play [FREQUENCY[xSECONDS]] Play a sine tone (default: 432 Hz for 3 seconds;
                                x-1 plays until Ctrl-C)
 
@@ -51,9 +55,9 @@ percentages; setting one automatically unmutes the corresponding switch.
 Volume and mute options control the ALSA hardware mixer and do not apply to
 Android; use the Android system volume there.`;
 
-let argv, port;
+let argv, port, protocol;
 try {
-  ({ args: argv, port } = parsePortOptions(process.argv.slice(2)));
+  ({ args: argv, port, protocol } = parsePortOptions(process.argv.slice(2)));
 } catch (error) {
   console.error(error.message);
   process.exit(2);
@@ -265,7 +269,7 @@ if (!mode) {
 }
 
 const backend = await createBackend(mode, { card: options.card });
-const server = new PulseServer({ backend, host: "127.0.0.1", port });
+const server = new PulseServer({ backend, host: "127.0.0.1", port, protocol });
 await server.listen();
 if (mode === "alsa")
   for (const direction of ["playback", "capture"]) {
@@ -276,7 +280,7 @@ if (mode === "alsa")
       console.log(`jspulse: ${direction} ${path}: ${describePcmDevice(path)}`);
   }
 console.log(
-  `jspulse: ${mode} source/sink ready on 127.0.0.1:${server.server.address().port} (anonymous)`,
+  `jspulse: ${mode} source/sink ready on 127.0.0.1:${server.server.address().port} (anonymous${protocol === 8 ? "" : `, protocol ${protocol}`})`,
 );
 
 const stop = async () => {
